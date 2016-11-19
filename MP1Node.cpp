@@ -71,7 +71,7 @@ void MP1Node::nodeStart(char *servaddrstr, short servport) {
     // Self booting routines
     if( initThisNode(&joinaddr) == -1 ) {
 #ifdef DEBUGLOG
-        log->LOG(&memberNode->addr, "init_thisnode failed. Exit.");
+        log->LOG(&memberNode->addr, "initthisnode failed. Exit.");
 #endif
         exit(1);
     }
@@ -126,7 +126,7 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
     if ( 0 == memcmp((char *)&(memberNode->addr.addr), (char *)&(joinaddr->addr), sizeof(memberNode->addr.addr))) {
         // I am the group booter (first process to join the group). Boot up the group
 #ifdef DEBUGLOG
-        log->LOG(&memberNode->addr, "Starting uenp group...");
+        log->LOG(&memberNode->addr, "Starting up group...");
 #endif
         memberNode->inGroup = true;
     }
@@ -192,7 +192,7 @@ void MP1Node::nodeLoop() {
     	return;
     }
 
-    // ...then jump in and share your responsibilites!
+    // ...then jump in and share your responsibilities!
     nodeLoopOps();
 
     return;
@@ -223,11 +223,15 @@ void MP1Node::checkMessages() {
  * DESCRIPTION: Message handler for different message types
  */
 bool MP1Node::recvCallBack(void *env, char *data, int size ) {
-	/*
-	 * Your code goes here
-	 * handle JOINREQ, JOINREP, DUMMYLASTMSGTYPE
-	 * update memberlist based on DUMMYLASTMSGTYPE
-	 */
+    /*
+     * Your code goes here
+     * handle JOINREQ, JOINREP, DUMMYLASTMSGTYPE
+     * To determine message type, check introducer IP against own IP, with respect to IP in message.
+     * update memberlist based on DUMMYLASTMSGTYPE
+     */
+    for (int i = 0; i < size; i++) {
+    printf("recvCallBack check: %c \n", *(data + i));
+}
 }
 
 /**
@@ -246,7 +250,7 @@ void MP1Node::nodeLoopOps() {
 	 * Update own heartbeat and TS
 	 * select members to ping
 	 * do ENsend to selected members
-	 * OPTIONAL(PUSH-PULL): receive their member lists and then update own as needed
+	 *
 	 *
 	 */
 

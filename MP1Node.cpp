@@ -243,6 +243,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     cout << "Heartbeat: " << heartbeat <<endl;//
     cout<<"addr size: "<<sizeof(memberNode->addr.addr)<<endl;
     cout<<"size test: "<<size<<endl;
+    //ghjk
 
 
 

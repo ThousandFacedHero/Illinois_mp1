@@ -104,7 +104,7 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	memberNode->inGroup = false;
     // node is up!
 	memberNode->nnb = 0;
-	memberNode->heartbeat = 0;
+	memberNode->heartbeat = 777;
 	memberNode->pingCounter = TFAIL;
 	memberNode->timeOutCounter = -1;
     initMemberListTable(memberNode);
@@ -138,7 +138,6 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         msg->msgType = JOINREQ;
         memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
         memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
-
 #ifdef DEBUGLOG
         sprintf(s, "Trying to join...");
         log->LOG(&memberNode->addr, s);
@@ -231,24 +230,21 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
      */
     Address addr;
     int requestType = *data;
-    long heartbeat[sizeof(long)];
+    long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
     int i;
-
-    //populate the 6 addr values with joining member addr values starting at data+1
+    //Populate the 6 addr values with joining member addr values starting at data+1
     for (i=0; i<sizeof(memberNode->addr.addr); i++){
         addr.addr[i] = *(data + 1 + i);
     }
-
-    //Populate heartbeat
-    // for (i=0; i<(sizeof(memberNode->addr.addr) - size); i++){
-    //    heartbeat[i] = *(data + 1 + sizeof(memberNode->addr.addr) + i);
-    // }
-
+    //Print values
     cout << "recvCallBack msgType:" << requestType<< endl;
+    cout << "Address: ";
+    printAddress(&addr);
+    cout << "Heartbeat: " << heartbeat <<endl;//
+    cout<<"addr size: "<<sizeof(memberNode->addr.addr)<<endl;
+    cout<<"size test: "<<size<<endl;
 
-    //cout<<"hearbeat: "<<heartbeat<<endl;
-    //cout << "extras:" <<(int)*(data +1)<<":"<<(int)*(data +2) <<":"<<(int)*(data +3)<<":"<<(int)*(data +4) <<":" <<(int)*(data +5) <<":"<<(int)*(data +6)<<":"<<(int)*(data +7)<<endl;
-        //cout << "recvCallBack memberNode id: " <<  (int)*(data +1)<< endl;
+
 
 
 }

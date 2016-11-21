@@ -229,10 +229,30 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
      * To determine message type, check introducer IP against own IP, with respect to IP in message.
      * update memberlist based on DUMMYLASTMSGTYPE
      */
-    for (int i = 0; i < size; i++) {
-    printf("recvCallBack check: %c \n", *(data + i));
+    Address addr;
+    int requestType = *data;
+    long heartbeat[sizeof(long)];
+    int i;
+
+    //populate the 6 addr values with joining member addr values starting at data+1
+    for (i=0; i<sizeof(memberNode->addr.addr); i++){
+        addr.addr[i] = *(data + 1 + i);
+    }
+
+    //Populate heartbeat
+    // for (i=0; i<(sizeof(memberNode->addr.addr) - size); i++){
+    //    heartbeat[i] = *(data + 1 + sizeof(memberNode->addr.addr) + i);
+    // }
+
+    cout << "recvCallBack msgType:" << requestType<< endl;
+
+    //cout<<"hearbeat: "<<heartbeat<<endl;
+    //cout << "extras:" <<(int)*(data +1)<<":"<<(int)*(data +2) <<":"<<(int)*(data +3)<<":"<<(int)*(data +4) <<":" <<(int)*(data +5) <<":"<<(int)*(data +6)<<":"<<(int)*(data +7)<<endl;
+        //cout << "recvCallBack memberNode id: " <<  (int)*(data +1)<< endl;
+
+
 }
-}
+
 
 /**
  * FUNCTION NAME: nodeLoopOps

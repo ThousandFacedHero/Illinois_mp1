@@ -224,50 +224,88 @@ void MP1Node::checkMessages() {
 bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     /*
      * Your code goes here
-     * handle JOINREQ, JOINREP, DUMMYLASTMSGTYPE
-     * To determine message type, check introducer IP against own IP, with respect to IP in message.
-     * update memberlist based on DUMMYLASTMSGTYPE
+     * handle JOINREQ, JOINREP, GOSSIP
      */
-    Address addr;
     int requestType = *data;
+    cout << "recvCallBack msgType:" << requestType<< endl;
+    cout<<"recvCallBack message size : "<<size<<endl;
+    //Check message type and send to corresponding function
+    if(requestType==0){
+        recvJoinRequest(env, data, size);
+        return 1;
+    }
+
+    if(requestType==1){
+        recvJoinReply(env, data, size);
+        return 1;
+    }
+
+    if(requestType==2){
+        recvGossip(env, data, size);
+        return 1;
+    }
+
+    //requestType incorrect, recvcallback failed.
+    return 0;
+}
+
+/**
+ * FUNCTION NAME: recvJoinRequest
+ *
+ * DESCRIPTION: Add joining node to memberlist,
+ *              then send a JOINREP back to that node with current memberlist.
+ */
+void MP1Node::recvJoinRequest(void *env, char *data, int size){
+    Address addr;
     long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
     int i;
+
     //Populate the 6 addr values with joining member addr values starting at data+1
     for (i=0; i<sizeof(memberNode->addr.addr); i++){
         addr.addr[i] = *(data + 1 + i);
     }
-    //Print values
-    cout << "recvCallBack msgType:" << requestType<< endl;
+
     cout << "Address: ";
     printAddress(&addr);
-    cout << "Heartbeat: " << heartbeat <<endl;//
-    cout<<"addr size: "<<sizeof(memberNode->addr.addr)<<endl;
-    cout<<"size test: "<<size<<endl;
+    cout << "Heartbeat: " << heartbeat <<endl;
+}
 
-
-
+/**
+ * FUNCTION NAME: recvJoinReply
+ *
+ * DESCRIPTION: Add memberlist from introducer to own initialized memberList.
+ */
+void MP1Node::recvJoinReply(void *env, char *data, int size) {
 
 }
 
+/**
+ * FUNCTION NAME: recvGossip
+ *
+ * DESCRIPTION: Compare incoming memberlist to current memberlist,
+ *              then update accordingly.
+ */
+void MP1Node::recvGossip(void *env, char *data, int size){
+
+}
 
 /**
  * FUNCTION NAME: nodeLoopOps
  *
  * DESCRIPTION: Check if any node hasn't responded within a timeout period and then delete
  * 				the nodes
- * 				Propagate your membership list
+ * 				Propagate your membership list to a subset of memberList.
  */
 void MP1Node::nodeLoopOps() {
 
 	/*
 	 * Your code goes here
 	 * Pull member list
+	 * Flag any past T_fail as failed
 	 * Cleanup any nodes in member list past T_cleanup
 	 * Update own heartbeat and TS
 	 * select members to ping
-	 * do ENsend to selected members
-	 *
-	 *
+	 * do ENsend with gossip msgtype to selected members
 	 */
 
     return;

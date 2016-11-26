@@ -138,6 +138,7 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         msg->msgType = JOINREQ;
         memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
         memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
+        //add memberlist here instead of addr and heartbeat
 #ifdef DEBUGLOG
         sprintf(s, "Trying to join...");
         log->LOG(&memberNode->addr, s);
@@ -256,18 +257,21 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
  *              then send a JOINREP back to that node with current memberlist.
  */
 void MP1Node::recvJoinRequest(void *env, char *data, int size){
-    Address addr;
-    long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
-    int i;
+    //int id = 0;
+    //short port;
+    //long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
+    //long timestamp = (long) time(NULL);
+    //memcpy(&id, data+4, sizeof(int));
+    //memcpy(&port, data+5, sizeof(short));
 
-    //Populate the 6 addr values with joining member addr values starting at data+1
-    for (i=0; i<sizeof(memberNode->addr.addr); i++){
-        addr.addr[i] = *(data + 1 + i);
-    }
-
-    cout << "Address: ";
-    printAddress(&addr);
+    //get location of incoming memberlist
+    vector<MemberListEntry> joinerMLE;
+    memcpy(&joinerMLE, data+1, size-1);
+//parse the memberlist from data
+    MemberListEntry *newMLE = new MemberListEntry(id, port, heartbeat, timestamp);
+    cout << "Address: "<<id<<":"<<port<<endl;
     cout << "Heartbeat: " << heartbeat <<endl;
+    cout<<"Time: "<<timestamp<<endl;
 }
 
 /**
@@ -341,7 +345,15 @@ Address MP1Node::getJoinAddress() {
  * DESCRIPTION: Initialize the membership list
  */
 void MP1Node::initMemberListTable(Member *memberNode) {
-	memberNode->memberList.clear();
+	int id = memberNode->addr.addr[4];
+    short port = memberNode ->addr.addr[5];
+    long timestamp = (long) time(NULL);
+    //Init the List
+    memberNode->memberList.clear();
+    //Insert yourself to the list
+    MemberListEntry *newMLE = new MemberListEntry(id, port, memberNode->heartbeat, timestamp);
+    memberNode->myPos = memberNode->memberList.end()++;
+    memberNode->memberList.insert(memberNode->myPos, *newMLE);
 }
 
 /**

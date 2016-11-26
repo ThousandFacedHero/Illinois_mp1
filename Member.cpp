@@ -43,7 +43,7 @@ bool Address::operator ==(const Address& anotherAddress) {
 MemberListEntry::MemberListEntry(int id, short port, long heartbeat, long timestamp): id(id), port(port), heartbeat(heartbeat), timestamp(timestamp) {}
 
 /**
- * Constuctor
+ * Constructor
  */
 MemberListEntry::MemberListEntry(int id, short port): id(id), port(port) {}
 

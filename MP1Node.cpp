@@ -131,14 +131,15 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         memberNode->inGroup = true;
     }
     else {
-        size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
+        size_t msgsize = sizeof(MessageHdr) + sizeof(memberNode->memberList);
+        // size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
         msg = (MessageHdr *) malloc(msgsize * sizeof(char));
 
         // create JOINREQ message: format of data is {struct Address myaddr}
         msg->msgType = JOINREQ;
-        memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
-        memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
-        //add memberlist here instead of addr and heartbeat
+        memcpy((char *)(msg+1), &memberNode->memberList, sizeof(memberNode->memberList));
+        //memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
+        //memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
 #ifdef DEBUGLOG
         sprintf(s, "Trying to join...");
         log->LOG(&memberNode->addr, s);
@@ -257,21 +258,39 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
  *              then send a JOINREP back to that node with current memberlist.
  */
 void MP1Node::recvJoinRequest(void *env, char *data, int size){
-    //int id = 0;
-    //short port;
-    //long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
-    //long timestamp = (long) time(NULL);
-    //memcpy(&id, data+4, sizeof(int));
-    //memcpy(&port, data+5, sizeof(short));
+    MessageHdr *outMsg;
+    Address joinerAddr;
 
-    //get location of incoming memberlist
+    //get incoming memberlist from data
     vector<MemberListEntry> joinerMLE;
     memcpy(&joinerMLE, data+1, size-1);
-//parse the memberlist from data
-    MemberListEntry *newMLE = new MemberListEntry(id, port, heartbeat, timestamp);
-    cout << "Address: "<<id<<":"<<port<<endl;
-    cout << "Heartbeat: " << heartbeat <<endl;
-    cout<<"Time: "<<timestamp<<endl;
+
+    //should be only one entry in joinerMLE, parse it out into a new entry for current list.
+    MemberListEntry newMLE = joinerMLE.back();
+
+    //Add new node to memberlist at the end of the list
+    memberNode->memberList.push_back(newMLE);
+
+    //Build an Address for joining node
+    int joinerId = newMLE.getid();
+    short joinerPort = newMLE.getport();
+    memcpy(&joinerAddr.addr[0], &joinerId, 4);
+    memcpy(&joinerAddr.addr[4], &joinerPort, 2);
+
+    //Log the addition of new node
+    log->logNodeAdd(&memberNode->addr, &joinerAddr);
+    cout << "Logging joining node: ";
+    printAddress(&joinerAddr);
+    //Build JoinRep message with current memberlist
+    size_t msgsize = sizeof(MessageHdr) + sizeof(memberNode->memberList);
+    outMsg = (MessageHdr *) malloc(msgsize * sizeof(char));
+    outMsg->msgType = JOINREP;
+    memcpy((char *)(outMsg+1), &memberNode->memberList, sizeof(memberNode->memberList));
+
+    // send JOINREQ message to introducer member
+    emulNet->ENsend(&memberNode->addr, &joinerAddr, (char *)outMsg, msgsize);
+
+    free(outMsg);
 }
 
 /**
@@ -282,7 +301,7 @@ void MP1Node::recvJoinRequest(void *env, char *data, int size){
 void MP1Node::recvJoinReply(void *env, char *data, int size) {
 
 }
-
+//Copy memberlist and update myPos with memberlist.end()
 /**
  * FUNCTION NAME: recvGossip
  *
@@ -290,7 +309,7 @@ void MP1Node::recvJoinReply(void *env, char *data, int size) {
  *              then update accordingly.
  */
 void MP1Node::recvGossip(void *env, char *data, int size){
-
+//For each item in memberlist vector[], run getID to establish a matcher for comparison.
 }
 
 /**

@@ -262,25 +262,26 @@ void MP1Node::recvJoinRequest(void *env, char *data, int size){
     Address joinerAddr;
 
     //get incoming memberlist from data
-    vector<MemberListEntry> joinerMLE;
-    memcpy(&joinerMLE, data+1, size-1);
+    vector<MemberListEntry> joinerML;
+    memcpy(&joinerML, data+1, size-1);
 
     //should be only one entry in joinerMLE, parse it out into a new entry for current list.
-    MemberListEntry newMLE = joinerMLE.back();
+    MemberListEntry joinerMLE = joinerML.back();
 
     //Add new node to memberlist at the end of the list
-    memberNode->memberList.push_back(newMLE);
+    memberNode->memberList.push_back(joinerMLE);
 
     //Build an Address for joining node
-    int joinerId = newMLE.getid();
-    short joinerPort = newMLE.getport();
-    memcpy(&joinerAddr.addr[0], &joinerId, 4);
-    memcpy(&joinerAddr.addr[4], &joinerPort, 2);
+    int joinerId = joinerMLE.getid();
+    short joinerPort = joinerMLE.getport();
+    memcpy(&joinerAddr.addr[0], &joinerId, sizeof(int));
+    memcpy(&joinerAddr.addr[4], &joinerPort, sizeof(short));
 
     //Log the addition of new node
     log->logNodeAdd(&memberNode->addr, &joinerAddr);
     cout << "Logging joining node: ";
     printAddress(&joinerAddr);
+
     //Build JoinRep message with current memberlist
     size_t msgsize = sizeof(MessageHdr) + sizeof(memberNode->memberList);
     outMsg = (MessageHdr *) malloc(msgsize * sizeof(char));
@@ -371,8 +372,8 @@ void MP1Node::initMemberListTable(Member *memberNode) {
     memberNode->memberList.clear();
     //Insert yourself to the list
     MemberListEntry *newMLE = new MemberListEntry(id, port, memberNode->heartbeat, timestamp);
-    memberNode->myPos = memberNode->memberList.end()++;
-    memberNode->memberList.insert(memberNode->myPos, *newMLE);
+    memberNode->memberList.push_back(*newMLE);
+    memberNode->myPos = memberNode->memberList.end();
 }
 
 /**

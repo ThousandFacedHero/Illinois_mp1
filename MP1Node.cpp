@@ -228,22 +228,61 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
      * To determine message type, check introducer IP against own IP, with respect to IP in message.
      * update memberlist based on DUMMYLASTMSGTYPE
      */
-    Address addr;
     int requestType = *data;
-    long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
-    int i;
-    //Populate the 6 addr values with joining member addr values starting at data+1
-    for (i=0; i<sizeof(memberNode->addr.addr); i++){
-        addr.addr[i] = *(data + 1 + i);
-    }
-    //Print values
     cout << "recvCallBack msgType:" << requestType<< endl;
-    cout << "Address: ";
-    printAddress(&addr);
-    cout << "Heartbeat: " << heartbeat <<endl;//
-    cout<<"addr size: "<<sizeof(memberNode->addr.addr)<<endl;
-    cout<<"size test: "<<size<<endl;
+    cout<<"msgsize: "<<size<<endl;
 
+    if (requestType == 0) {
+        //JOINREQ
+        //Add node to memberlist and return memberlist in char array.
+        //Build return message using MLE get functions
+        MessageHdr *repMsg;
+        long heartbeat = *(long *)(data + 5 + sizeof(memberNode->addr.addr));
+        long timestamp = (long) time(NULL);
+
+        //Populate the addr with joining member addr values starting at data+1
+        Address addr;
+        for (int i=0; i<sizeof(memberNode->addr.addr); i++){
+            addr.addr[i] = *(data + 1 + i);
+        }
+
+        //If memberlist is empty, add yourself.
+        if (memberNode->memberList.size() ==0) {
+            MemberListEntry *IntroMLE = new MemberListEntry((int)memberNode->addr.addr[0], (short) memberNode->addr.addr[4], memberNode->heartbeat, timestamp);
+            memberNode->memberList.push_back(*IntroMLE);
+            memberNode->myPos = memberNode->memberList.begin();
+        }
+
+        //Build MLE from joiner data
+        MemberListEntry *joinerMLE = new MemberListEntry((int)addr.addr[0], (short)addr.addr[4], heartbeat, timestamp);
+        //Add it to memberlist
+        memberNode->memberList.push_back(*joinerMLE);
+
+        //Build return message
+        repMsg->msgType = JOINREP;
+
+        for (int i = 0; i < memberNode->memberList.size(); i++){
+
+        }
+        size_t msgsize = sizeof(MessageHdr) + memberNode->memberList.size() + 1;
+        cout << "Address: ";
+        printAddress(&addr);
+        cout << "Heartbeat: " << heartbeat <<endl;//
+    }
+
+    if (requestType == 1) {
+        //JOINREP
+        //Parse char array into memberlist
+
+    }
+
+    if (requestType == 2) {
+        //GOSSIP
+        //Parse char array into temp memberlist, then compare against current memberlist
+
+    }
+
+    //Print values
 
 
 
@@ -266,8 +305,6 @@ void MP1Node::nodeLoopOps() {
      * Update own heartbeat and TS
      * select members to ping
      * do ENsend to selected members
-     *
-     *
      */
 
     return;

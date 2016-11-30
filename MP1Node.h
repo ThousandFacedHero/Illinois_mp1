@@ -75,6 +75,7 @@ public:
 	Address getJoinAddress();
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
+    void split(const string &s, char delim, vector<string> &elems);
 	virtual ~MP1Node();
 };
 

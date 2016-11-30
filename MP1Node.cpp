@@ -6,7 +6,7 @@
  **********************************/
 
 #include "MP1Node.h"
-
+#include "sstream"
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
@@ -229,62 +229,144 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
      * update memberlist based on DUMMYLASTMSGTYPE
      */
     int requestType = *data;
-    cout << "recvCallBack msgType:" << requestType<< endl;
-    cout<<"msgsize: "<<size<<endl;
+    long timestamp = (long) time(NULL);
+    cout << "recvCallBack msgType:" << requestType << endl;
+    cout << "msgsize: " << size << endl;
 
     if (requestType == 0) {
         //JOINREQ
         //Add node to memberlist and return memberlist in char array.
-        //Build return message using MLE get functions
-        MessageHdr *repMsg;
-        long heartbeat = *(long *)(data + 5 + sizeof(memberNode->addr.addr));
-        long timestamp = (long) time(NULL);
+
+        //MessageHdr *repMsg;
+        //Build memberlist values from *data
+        long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
 
         //Populate the addr with joining member addr values starting at data+1
         Address addr;
-        for (int i=0; i<sizeof(memberNode->addr.addr); i++){
-            addr.addr[i] = *(data + 1 + i);
-        }
+        int id = *(int *) (data + 1);
+        short port = *(short *) (data + 5);
+        memcpy(&addr.addr[0], &id, sizeof(int));
+        memcpy(&addr.addr[4], &port, sizeof(short));
+        cout << "Joiner Address: ";
+        printAddress(&addr);
 
         //If memberlist is empty, add yourself.
-        if (memberNode->memberList.size() ==0) {
-            MemberListEntry *IntroMLE = new MemberListEntry((int)memberNode->addr.addr[0], (short) memberNode->addr.addr[4], memberNode->heartbeat, timestamp);
+        if (memberNode->memberList.size() == 0) {
+            MemberListEntry *IntroMLE = new MemberListEntry((int) memberNode->addr.addr[0],
+                                                            (short) memberNode->addr.addr[4], memberNode->heartbeat,
+                                                            timestamp);
             memberNode->memberList.push_back(*IntroMLE);
             memberNode->myPos = memberNode->memberList.begin();
         }
 
         //Build MLE from joiner data
-        MemberListEntry *joinerMLE = new MemberListEntry((int)addr.addr[0], (short)addr.addr[4], heartbeat, timestamp);
+        MemberListEntry *joinerMLE = new MemberListEntry((int) addr.addr[3], (short) addr.addr[4], heartbeat,
+                                                         timestamp);
         //Add it to memberlist
         memberNode->memberList.push_back(*joinerMLE);
 
         //Build return message
-        repMsg->msgType = JOINREP;
-
-        for (int i = 0; i < memberNode->memberList.size(); i++){
-
+        //Create a string from the memberlist
+        string list = to_string(1);
+        for (int i = 0; i < memberNode->memberList.size(); i++) {
+            list = list + "," + to_string(memberNode->memberList[i].getid()) + ":" +
+                   to_string(memberNode->memberList[i].getport()) + ":" +
+                   to_string(memberNode->memberList[i].getheartbeat()) + ":" +
+                   to_string(memberNode->memberList[i].gettimestamp());
         }
-        size_t msgsize = sizeof(MessageHdr) + memberNode->memberList.size() + 1;
-        cout << "Address: ";
-        printAddress(&addr);
-        cout << "Heartbeat: " << heartbeat <<endl;//
+        cout << "MemberList String: " << list << endl;
+
+        //Build the JoinRep message
+        //repMsg->msgType = JOINREP;
+        char *repMsg = new char[list.size() + 1];
+        std::copy(list.begin(), list.end(), repMsg);
+        repMsg[list.size()] = '\0'; // don't forget the terminating 0
+
+        //Build msgsize
+        size_t msgsize = sizeof(repMsg);
+
+        //Send the JoinRep message
+        emulNet->ENsend(&memberNode->addr, &addr, repMsg, msgsize);
+
+        // don't forget to free the string after finished using it
+        free(repMsg);
+
+        return 1;
     }
 
     if (requestType == 1) {
         //JOINREP
-        //Parse char array into memberlist
+        //Change char pointer into string then parse into memberlist
 
+        //Convert data back into a string
+        string joinRepData(data);
+        cout << "joinrep data: " << joinRepData << endl;
+
+        //Build a vector of the membernodes in joinRepData
+        vector<string> members;
+        split(joinRepData,',',members);
+
+        //Build and populate the memberlist
+        vector<string> tempMle;
+        for (int i = 1; i < members.size(); i++) {
+            split(members[i],':',tempMle);
+            memberNode->memberList[i].setid(stoi(tempMle[0]));
+            memberNode->memberList[i].setport((short)stoi(tempMle[1]));
+            memberNode->memberList[i].setheartbeat(stol(tempMle[2]));
+            memberNode->memberList[i].settimestamp(stol(tempMle[3]));
+            tempMle.clear();
+        }
+
+        //Set myPos
+        memberNode->myPos = memberNode->memberList.end()++;
+
+        return 1;
     }
 
     if (requestType == 2) {
         //GOSSIP
-        //Parse char array into temp memberlist, then compare against current memberlist
+        //Change char array into string and parse into temp memberlist, then compare against current memberlist
+        string gossipData(data);
+        cout << "gossipData: " << gossipData << endl;
+
+        //Build a vector of the membernodes in gossipData
+        vector<string> members;
+        split(gossipData,',',members);
+
+        //Build and populate the temp memberlist
+        vector<string> tempMle;
+        vector<MemberListEntry> tempMemList;
+        for (int i = 1; i < members.size(); i++) {
+            split(members[i],':',tempMle);
+            tempMemList[i].setid(stoi(tempMle[0]));
+            tempMemList[i].setport((short)stoi(tempMle[1]));
+            tempMemList[i].setheartbeat(stol(tempMle[2]));
+            tempMemList[i].settimestamp(stol(tempMle[3]));
+            tempMle.clear();
+        }
+
+        //See if there are any nodes in the tempMemList that the membernode doesn't have, then add them.
+        //TODO: this may need to change to a MemberListEntry assignment operator instead of a push_back
+        if ((tempMemList.size()-1) > memberNode->memberList.size()) {
+            int missingNodes = (int)(tempMemList.size()-1) - (int)memberNode->memberList.size();
+            for (int i=1; i < missingNodes; i++){
+                memberNode->memberList.push_back(tempMemList[memberNode->memberList.size()+i]);
+            }
+        }
+
+        //Now compare heartbeats of each node between memberlists, and update heartbeat and timestamp accordingly.
+        for (int i=0; i < memberNode->memberList.size(); i++){
+            if (tempMemList[i+1].getheartbeat() > memberNode->memberList[i].getheartbeat()){
+                memberNode->memberList[i].setheartbeat(tempMemList[i+1].getheartbeat());
+                memberNode->memberList[i].settimestamp(timestamp);
+            }
+        }
+
+        return 1;
 
     }
 
-    //Print values
-
-
+return 0;
 
 }
 
@@ -296,60 +378,76 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
  * 				the nodes
  * 				Propagate your membership list
  */
-void MP1Node::nodeLoopOps() {
+    void MP1Node::nodeLoopOps() {
 
-    /*
-     * Your code goes here
-     * Pull member list
-     * Cleanup any nodes in member list past T_cleanup
-     * Update own heartbeat and TS
-     * select members to ping
-     * do ENsend to selected members
-     */
+        /*
+         * Your code goes here
+         * Pull member list
+         * Cleanup any nodes in member list past T_cleanup
+         * Update own heartbeat and TS
+         * select members to ping
+         * do ENsend to selected members
+         */
 
-    return;
-}
+        return;
+    }
 
 /**
  * FUNCTION NAME: isNullAddress
  *
  * DESCRIPTION: Function checks if the address is NULL
  */
-int MP1Node::isNullAddress(Address *addr) {
-    return (memcmp(addr->addr, NULLADDR, 6) == 0 ? 1 : 0);
-}
+    int MP1Node::isNullAddress(Address *addr) {
+        return (memcmp(addr->addr, NULLADDR, 6) == 0 ? 1 : 0);
+    }
 
 /**
  * FUNCTION NAME: getJoinAddress
  *
  * DESCRIPTION: Returns the Address of the coordinator
  */
-Address MP1Node::getJoinAddress() {
-    Address joinaddr;
+    Address MP1Node::getJoinAddress() {
+        Address joinaddr;
 
-    memset(&joinaddr, 0, sizeof(Address));
-    *(int *)(&joinaddr.addr) = 1;
-    *(short *)(&joinaddr.addr[4]) = 0;
+        memset(&joinaddr, 0, sizeof(Address));
+        *(int *) (&joinaddr.addr) = 1;
+        *(short *) (&joinaddr.addr[4]) = 0;
 
-    return joinaddr;
-}
+        return joinaddr;
+    }
 
 /**
  * FUNCTION NAME: initMemberListTable
  *
  * DESCRIPTION: Initialize the membership list
  */
-void MP1Node::initMemberListTable(Member *memberNode) {
-    memberNode->memberList.clear();
-}
+    void MP1Node::initMemberListTable(Member *memberNode) {
+        memberNode->memberList.clear();
+    }
 
 /**
  * FUNCTION NAME: printAddress
  *
  * DESCRIPTION: Print the Address
  */
-void MP1Node::printAddress(Address *addr)
-{
-    printf("%d.%d.%d.%d:%d \n",  addr->addr[0],addr->addr[1],addr->addr[2],
-           addr->addr[3], *(short*)&addr->addr[4]) ;
-}
+    void MP1Node::printAddress(Address *addr) {
+        printf("%d.%d.%d.%d:%d \n", addr->addr[0], addr->addr[1], addr->addr[2],
+               addr->addr[3], *(short *) &addr->addr[4]);
+    }
+
+    /**
+     * FUNCTION NAME: split
+     *
+     * DESC: Needed something to quickly split strings on delim.
+     */
+    void MP1Node::split(const string &s, char delim, vector<string> &elems) {
+        stringstream ss;
+        ss.str(s);
+        string item;
+        while (getline(ss, item, delim)) {
+            elems.push_back(item);
+        }
+    }
+
+
+

@@ -103,7 +103,7 @@ int MP1Node::initThisNode(Address *joinaddr) {
     memberNode->inGroup = false;
     // node is up!
     memberNode->nnb = 0;
-    memberNode->heartbeat = 777;
+    memberNode->heartbeat = 0;
     memberNode->pingCounter = TFAIL;
     memberNode->timeOutCounter = -1;
     initMemberListTable(memberNode);
@@ -265,6 +265,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         //Add it to memberlist
         memberNode->memberList.push_back(*joinerMLE);
 
+        //TODO: Log addition of member to memberlist
+
         //Build return message
         //Create a string from the memberlist
         string list = to_string(1);
@@ -317,8 +319,13 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             tempMle.clear();
         }
 
+        //TODO: Log the addition of new member
+
         //Set myPos
-        memberNode->myPos = memberNode->memberList.end()++;
+        memberNode->myPos = prev(memberNode->memberList.end());
+
+        //Successfully joined the group
+        memberNode->inGroup = true;
 
         return 1;
     }
@@ -336,28 +343,31 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         //Build and populate the temp memberlist
         vector<string> tempMle;
         vector<MemberListEntry> tempMemList;
-        for (int i = 1; i < (int)members.size(); i++) {
-            split(members[i],':',tempMle);
+        for (int i = 0; i < (int)members.size(); i++) {
+            split(members[i+1],':',tempMle);
             tempMemList[i].setid(stoi(tempMle[0]));
             tempMemList[i].setport((short)stoi(tempMle[1]));
             tempMemList[i].setheartbeat(stol(tempMle[2]));
             tempMemList[i].settimestamp(stol(tempMle[3]));
             tempMle.clear();
         }
+        //Clear the members vector since we don't need it anymore
+        members.clear();
 
         //See if there are any nodes in the tempMemList that the membernode doesn't have, then add them.
         //TODO: this may need to change to a MemberListEntry assignment operator instead of a push_back
-        if ((tempMemList.size()-1) > memberNode->memberList.size()) {
-            int missingNodes = (int)(tempMemList.size()-1) - (int)memberNode->memberList.size();
+        if (tempMemList.size() > memberNode->memberList.size()) {
+            int missingNodes = (int)(tempMemList.size()) - (int)memberNode->memberList.size();
             for (int i=1; i < missingNodes; i++){
                 memberNode->memberList.push_back(tempMemList[memberNode->memberList.size()+i]);
             }
         }
+        //TODO: Log the nodes that are added
 
-        //Now compare heartbeats of each node between memberlists, and update heartbeat and timestamp accordingly.
+        //Now compare heartbeats of each node between memberlists, then update heartbeat and timestamp accordingly.
         for (int i=0; i < (int)memberNode->memberList.size(); i++){
-            if (tempMemList[i+1].getheartbeat() > memberNode->memberList[i].getheartbeat()){
-                memberNode->memberList[i].setheartbeat(tempMemList[i+1].getheartbeat());
+            if (tempMemList[i].getheartbeat() > memberNode->memberList[i].getheartbeat()){
+                memberNode->memberList[i].setheartbeat(tempMemList[i].getheartbeat());
                 memberNode->memberList[i].settimestamp(timestamp);
             }
         }
@@ -390,12 +400,36 @@ return 0;
          */
     long timestamp = (long) time(NULL);
 
-    for(int i=0; i < (int)memberNode->memberList.size(); i++){
-        if((timestamp - memberNode->memberList[i].gettimestamp()) > TFAIL){
-            //Flag node as failed.
+    //Find my location in the memberlist
+    int myLoc = 0;
+    for (int i=0; i < (int)memberNode->memberList.size(); i++){
+        if (memberNode->memberList[i].getid() == (int)memberNode->addr.addr[0]){
+            myLoc = i;
         }
     }
 
+    //Update own heartbeat and timestamp in membernode and in memberlist
+    memberNode->heartbeat = memberNode->heartbeat +1;
+    memberNode->memberList[myLoc].setheartbeat(memberNode->heartbeat);
+    memberNode->memberList[myLoc].settimestamp(timestamp);
+
+    //Loop through memberlist to check for timed-out members
+    for(int i=0; i < (int)memberNode->memberList.size(); i++){
+        if((timestamp - memberNode->memberList[i].gettimestamp()) > TREMOVE){
+            //Flag node as failed.
+            memberNode->memberList[i].setheartbeat(-1);
+        }
+    }
+
+    //TODO: Log removal of members
+
+    //Build a memberlist to send
+
+    //Select non-failed nodes to send to, at random
+
+    //Build send message
+
+    //Loop send message for selected members
     return;
     }
 

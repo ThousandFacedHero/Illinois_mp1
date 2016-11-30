@@ -6,7 +6,6 @@
  **********************************/
 
 #include "MP1Node.h"
-#include "sstream"
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
@@ -96,8 +95,8 @@ int MP1Node::initThisNode(Address *joinaddr) {
     /*
      * This function is partially implemented and may require changes
      */
-    int id = *(int*)(&memberNode->addr.addr);
-    int port = *(short*)(&memberNode->addr.addr[4]);
+    //int id = *(int*)(&memberNode->addr.addr);
+    //int port = *(short*)(&memberNode->addr.addr[4]);
 
     memberNode->bFailed = false;
     memberNode->inited = true;
@@ -170,6 +169,7 @@ int MP1Node::finishUpThisNode(){
      * Clean up memberlist
      *
      */
+    return 0;
 }
 
 /**
@@ -268,7 +268,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         //Build return message
         //Create a string from the memberlist
         string list = to_string(1);
-        for (int i = 0; i < memberNode->memberList.size(); i++) {
+        for (int i = 0; i < (int)memberNode->memberList.size(); i++) {
             list = list + "," + to_string(memberNode->memberList[i].getid()) + ":" +
                    to_string(memberNode->memberList[i].getport()) + ":" +
                    to_string(memberNode->memberList[i].getheartbeat()) + ":" +
@@ -308,7 +308,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
         //Build and populate the memberlist
         vector<string> tempMle;
-        for (int i = 1; i < members.size(); i++) {
+        for (int i = 1; i < (int)members.size(); i++) {
             split(members[i],':',tempMle);
             memberNode->memberList[i].setid(stoi(tempMle[0]));
             memberNode->memberList[i].setport((short)stoi(tempMle[1]));
@@ -336,7 +336,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         //Build and populate the temp memberlist
         vector<string> tempMle;
         vector<MemberListEntry> tempMemList;
-        for (int i = 1; i < members.size(); i++) {
+        for (int i = 1; i < (int)members.size(); i++) {
             split(members[i],':',tempMle);
             tempMemList[i].setid(stoi(tempMle[0]));
             tempMemList[i].setport((short)stoi(tempMle[1]));
@@ -355,7 +355,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         }
 
         //Now compare heartbeats of each node between memberlists, and update heartbeat and timestamp accordingly.
-        for (int i=0; i < memberNode->memberList.size(); i++){
+        for (int i=0; i < (int)memberNode->memberList.size(); i++){
             if (tempMemList[i+1].getheartbeat() > memberNode->memberList[i].getheartbeat()){
                 memberNode->memberList[i].setheartbeat(tempMemList[i+1].getheartbeat());
                 memberNode->memberList[i].settimestamp(timestamp);
@@ -388,8 +388,15 @@ return 0;
          * select members to ping
          * do ENsend to selected members
          */
+    long timestamp = (long) time(NULL);
 
-        return;
+    for(int i=0; i < (int)memberNode->memberList.size(); i++){
+        if((timestamp - memberNode->memberList[i].gettimestamp()) > TFAIL){
+            //Flag node as failed.
+        }
+    }
+
+    return;
     }
 
 /**
@@ -435,19 +442,19 @@ return 0;
                addr->addr[3], *(short *) &addr->addr[4]);
     }
 
-    /**
-     * FUNCTION NAME: split
-     *
-     * DESC: Needed something to quickly split strings on delim.
-     */
-    void MP1Node::split(const string &s, char delim, vector<string> &elems) {
-        stringstream ss;
-        ss.str(s);
-        string item;
-        while (getline(ss, item, delim)) {
-            elems.push_back(item);
-        }
+/**
+ * FUNCTION NAME: split
+ *
+ * DESC: Needed something to quickly split strings on delim.
+ */
+void MP1Node::split(const string &s, char delim, vector<string> &elems) {
+    stringstream ss;
+    ss.str(s);
+    string item;
+    while (getline(ss, item, delim)) {
+        elems.push_back(item);
     }
+}
 
 
 

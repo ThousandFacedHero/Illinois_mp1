@@ -15,6 +15,8 @@
 #include "EmulNet.h"
 #include "Queue.h"
 #include "sstream"
+#include "random"
+
 
 /**
  * Macros

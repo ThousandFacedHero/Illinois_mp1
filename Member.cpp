@@ -128,8 +128,8 @@ void MemberListEntry::setport(short port) {
  *
  * DESCRIPTION: setter
  */
-void MemberListEntry::setheartbeat(long hearbeat) {
-	this->heartbeat = hearbeat;
+void MemberListEntry::setheartbeat(long heartbeat) {
+	this->heartbeat = heartbeat;
 }
 
 /**

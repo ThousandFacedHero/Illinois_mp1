@@ -103,8 +103,8 @@ int MP1Node::initThisNode(Address *joinaddr) {
     memberNode->inGroup = false;
     // node is up!
     memberNode->nnb = 0;
-    memberNode->heartbeat = 0;
-    memberNode->pingCounter = TFAIL;
+    memberNode->heartbeat = 1;
+    memberNode->pingCounter = 1;
     memberNode->timeOutCounter = -1;
     initMemberListTable(memberNode);
 
@@ -117,9 +117,9 @@ int MP1Node::initThisNode(Address *joinaddr) {
  * DESCRIPTION: Join the distributed system
  */
 int MP1Node::introduceSelfToGroup(Address *joinaddr) {
-    MessageHdr *msg;
+    //MessageHdr *msg;
 #ifdef DEBUGLOG
-    static char s[1024];
+    //static char s[1024];
 #endif
 
     if ( 0 == memcmp((char *)&(memberNode->addr.addr), (char *)&(joinaddr->addr), sizeof(memberNode->addr.addr))) {
@@ -130,20 +130,19 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         memberNode->inGroup = true;
     }
     else {
-        size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
-        msg = (MessageHdr *) malloc(msgsize * sizeof(char));
-
-        // create JOINREQ message: format of data is {struct Address myaddr}
-        msg->msgType = JOINREQ;
-        memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
-        memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
+        string joinStr = "0";
+        joinStr = joinStr + ',' + memberNode->addr.getAddress() + ',' + to_string(memberNode->heartbeat);
+        char *msg = new char[joinStr.size() + 1];
+        copy(joinStr.begin(), joinStr.end(), msg);
+        msg[joinStr.size()] = '\0'; // don't forget the terminating 0
+        int msgsize = (int)joinStr.size();
 #ifdef DEBUGLOG
-        sprintf(s, "Trying to join...");
-        log->LOG(&memberNode->addr, s);
+        //sprintf(s, "Trying to join...");
+        //log->LOG(&memberNode->addr, s);
 #endif
 
         // send JOINREQ message to introducer member
-        emulNet->ENsend(&memberNode->addr, joinaddr, (char *)msg, (int)msgsize);
+        emulNet->ENsend(&memberNode->addr, joinaddr, msg, msgsize);
 
         free(msg);
     }
@@ -169,6 +168,7 @@ int MP1Node::finishUpThisNode(){
      * Clean up memberlist
      *
      */
+    //TODO
     return 0;
 }
 
@@ -222,31 +222,29 @@ void MP1Node::checkMessages() {
  * DESCRIPTION: Message handler for different message types
  */
 bool MP1Node::recvCallBack(void *env, char *data, int size ) {
-    /*
-     * Your code goes here
-     * handle JOINREQ, JOINREP, DUMMYLASTMSGTYPE
-     * To determine message type, check introducer IP against own IP, with respect to IP in message.
-     * update memberlist based on DUMMYLASTMSGTYPE
-     */
-    int requestType = *data;
+
+    //Rebuild data string, then split into vector elements.
+    string callBackData(data);
+    vector<string> dataVec;
+    split(callBackData, ',', dataVec);
+
+    int requestType = stoi(dataVec[0]);
     long timestamp = (long) time(NULL);
-    cout << "recvCallBack msgType:" << requestType << endl;
-    cout << "msgsize: " << size << endl;
 
     if (requestType == 0) {
         //JOINREQ
         //Add node to memberlist and return memberlist in char array.
+        cout << "Processing JOINREQ on node: ";
+        printAddress(&memberNode->addr);
+        cout << "JOINREQ msgsize: " << size << endl;
+        cout<<"JoinReqString: "<<callBackData<<endl;
+        //Set incoming node variables from vector
+        Address addr(dataVec[1]);
+        long heartbeat = stol(dataVec[2]);
 
-        //MessageHdr *repMsg;
-        //Build memberlist values from *data
-        long heartbeat = *(long *) (data + 5 + sizeof(memberNode->addr.addr));
+        //Clear the dataVec vector since we don't need it anymore
+        dataVec.clear();
 
-        //Populate the addr with joining member addr values starting at data+1
-        Address addr;
-        int id = *(int *) (data + 1);
-        short port = *(short *) (data + 5);
-        memcpy(&addr.addr[0], &id, sizeof(int));
-        memcpy(&addr.addr[4], &port, sizeof(short));
         cout << "Joiner Address: ";
         printAddress(&addr);
 
@@ -260,12 +258,13 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         }
 
         //Build MLE from joiner data
-        MemberListEntry *joinerMLE = new MemberListEntry((int) addr.addr[3], (short) addr.addr[4], heartbeat,
+        MemberListEntry *joinerMLE = new MemberListEntry((int) addr.addr[0], (short) addr.addr[4], heartbeat,
                                                          timestamp);
         //Add it to memberlist
         memberNode->memberList.push_back(*joinerMLE);
 
-        //TODO: Log addition of member to memberlist
+        //Log addition of member to memberlist
+        log->logNodeAdd(&memberNode->addr, &addr);
 
         //Build return message
         //Create a string from the memberlist
@@ -276,19 +275,19 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                    to_string(memberNode->memberList[i].getheartbeat()) + ":" +
                    to_string(memberNode->memberList[i].gettimestamp());
         }
-        cout << "MemberList String: " << list << endl;
 
         //Build the JoinRep message
         //repMsg->msgType = JOINREP;
         char *repMsg = new char[list.size() + 1];
         copy(list.begin(), list.end(), repMsg);
         repMsg[list.size()] = '\0'; // don't forget the terminating 0
+        cout << "JoinReq outmsg MemberList String: " << string(repMsg) << endl;
 
         //Build msgsize
-        size_t msgsize = sizeof(repMsg);
+        int msgsize = (int)list.size();
 
         //Send the JoinRep message
-        emulNet->ENsend(&memberNode->addr, &addr, repMsg, (int)msgsize);
+        emulNet->ENsend(&memberNode->addr, &addr, repMsg, msgsize);
 
         // don't forget to free the string after finished using it
         free(repMsg);
@@ -299,27 +298,27 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     if (requestType == 1) {
         //JOINREP
         //Change char pointer into string then parse into memberlist
+        cout << "Processing JOINREP on node: ";
+        printAddress(&memberNode->addr);
+        cout << "JOINREP msgsize: " << size << endl;
+        cout << "joinrep data: " << callBackData << endl;
 
-        //Convert data back into a string
-        string joinRepData(data);
-        cout << "joinrep data: " << joinRepData << endl;
-
-        //Build a vector of the membernodes in joinRepData
-        vector<string> members;
-        split(joinRepData,',',members);
-
-        //Build and populate the memberlist
+        //Build and populate the memberlist with dataVec that holds request type(at [0]) and memberlist
         vector<string> tempMle;
-        for (int i = 1; i < (int)members.size(); i++) {
-            split(members[i],':',tempMle);
-            memberNode->memberList[i].setid(stoi(tempMle[0]));
-            memberNode->memberList[i].setport((short)stoi(tempMle[1]));
-            memberNode->memberList[i].setheartbeat(stol(tempMle[2]));
-            memberNode->memberList[i].settimestamp(stol(tempMle[3]));
+        for (int i = 0; i < (int)dataVec.size()-1; i++) {
+            split(dataVec[i+1],':',tempMle);
+            memberNode->memberList.push_back(MemberListEntry(stoi(tempMle[0]), (short)stoi(tempMle[1]), stol(tempMle[2]), stol(tempMle[3])));
             tempMle.clear();
         }
+        //Clear the dataVec vector since we don't need it anymore
+        dataVec.clear();
 
-        //TODO: Log the addition of new member
+        //Loop Build address and Log the node add
+        for (int i = 0; i < (int)memberNode->memberList.size()-1; i++){
+            Address addAddr(to_string(memberNode->memberList[i].getid()) + ":" +
+                            to_string(memberNode->memberList[i].getport()));
+            log->logNodeAdd(&memberNode->addr, &addAddr);
+        }
 
         //Set myPos
         memberNode->myPos = prev(memberNode->memberList.end());
@@ -332,27 +331,23 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
     if (requestType == 2) {
         //GOSSIP
-        //Change char array into string and parse into temp memberlist, then compare against current memberlist
-        string gossipData(data);
-        cout << "gossipData: " << gossipData << endl;
-
-        //Build a vector of the membernodes in gossipData
-        vector<string> members;
-        split(gossipData,',',members);
+        cout << "Processing GOSSIP message on node: ";
+        printAddress(&memberNode->addr);
+        cout << "GOSSIP msgsize: " << size << endl;
 
         //Build and populate the temp memberlist
         vector<string> tempMle;
         vector<MemberListEntry> tempMemList;
-        for (int i = 0; i < (int)members.size(); i++) {
-            split(members[i+1],':',tempMle);
+        for (int i = 0; i < (int)dataVec.size()-1; i++) {
+            split(dataVec[i+1],':',tempMle);
             tempMemList[i].setid(stoi(tempMle[0]));
             tempMemList[i].setport((short)stoi(tempMle[1]));
             tempMemList[i].setheartbeat(stol(tempMle[2]));
             tempMemList[i].settimestamp(stol(tempMle[3]));
             tempMle.clear();
         }
-        //Clear the members vector since we don't need it anymore
-        members.clear();
+        //Clear the dataVec vector since we don't need it anymore
+        dataVec.clear();
 
         //See if there are any nodes in the tempMemList that the membernode doesn't have, then add them.
         //TODO: this may need to change to a MemberListEntry assignment operator instead of a push_back
@@ -360,9 +355,12 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             int missingNodes = (int)(tempMemList.size()) - (int)memberNode->memberList.size();
             for (int i=1; i < missingNodes; i++){
                 memberNode->memberList.push_back(tempMemList[memberNode->memberList.size()+i]);
+                //Build address and Log the node add
+                Address addAddr(to_string(tempMemList[memberNode->memberList.size()+i].getid()) + ":" +
+                                 to_string(tempMemList[memberNode->memberList.size()+i].getport()));
+                log->logNodeAdd(&memberNode->addr, &addAddr);
             }
         }
-        //TODO: Log the nodes that are added
 
         //Now compare heartbeats of each node between memberlists, then update heartbeat and timestamp accordingly.
         for (int i=0; i < (int)memberNode->memberList.size(); i++){
@@ -371,6 +369,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                 memberNode->memberList[i].settimestamp(timestamp);
             }
         }
+        //Clear the tempMemList vector since we don't need it anymore
+        tempMemList.clear();
 
         return 1;
 
@@ -389,7 +389,8 @@ return 0;
  * 				Propagate your membership list
  */
     void MP1Node::nodeLoopOps() {
-
+    cout << "Starting nodeLoopOps on node: ";
+    printAddress(&memberNode->addr);
     //Create a timestamp of the current time
     long timestamp = (long) time(NULL);
 
@@ -411,55 +412,68 @@ return 0;
         if((timestamp - memberNode->memberList[i].gettimestamp()) > TREMOVE){
             //Flag node as failed.
             memberNode->memberList[i].setheartbeat(-1);
+            //Build address and Log the removal of the member
+            Address remAddr(to_string(memberNode->memberList[i].getid()) + ":" +
+                             to_string(memberNode->memberList[i].getport()));
+            log->logNodeRemove(&memberNode->addr, &remAddr);
         }
     }
 
-    //TODO: Log removal of members
 
-    //Create a string to hold memlist, with first value of 2(GOSSIP msgtype)
-    string gosMemList = to_string(2);
 
-    //Build a memberlist into string
-    for (int i = 0; i < (int)memberNode->memberList.size(); i++) {
-        gosMemList = gosMemList + "," + to_string(memberNode->memberList[i].getid()) + ":" +
-               to_string(memberNode->memberList[i].getport()) + ":" +
-               to_string(memberNode->memberList[i].getheartbeat()) + ":" +
-               to_string(memberNode->memberList[i].gettimestamp());
-    }
-    cout << "MemberList String: " << gosMemList << endl;
+    if (memberNode->pingCounter % 5 == 0) {
 
-    //Build char pointer from gosMemList to use in ENsend
-    char *gosMsg = new char[gosMemList.size() + 1];
-    copy(gosMemList.begin(), gosMemList.end(), gosMsg);
-    gosMsg[gosMemList.size()] = '\0'; // don't forget the terminating 0
+        //Create a string to hold memlist, with first value of 2(GOSSIP msgtype)
+        string gosMemList = to_string(2);
 
-    //Build msgsize
-    size_t msgsize = sizeof(gosMsg);
-
-    //Find non-failed nodes to gossip to and place node location into vector
-    vector<int> nonFail;
-    for (int i = 0; i < (int)memberNode->memberList.size(); i++){
-        if (memberNode->memberList[i].getheartbeat() > -1){
-            vector<MemberListEntry>::iterator nodeLoc = find(memberNode->memberList.begin(), memberNode->memberList.end(), memberNode->memberList[i]);
-            nonFail.push_back((int)(distance(memberNode->memberList.begin(), nodeLoc)));
+        //Build a memberlist into string
+        for (int i = 0; i < (int) memberNode->memberList.size(); i++) {
+            gosMemList = gosMemList + "," + to_string(memberNode->memberList[i].getid()) + ":" +
+                         to_string(memberNode->memberList[i].getport()) + ":" +
+                         to_string(memberNode->memberList[i].getheartbeat()) + ":" +
+                         to_string(memberNode->memberList[i].gettimestamp());
         }
+        cout << "NodeLoops MemberList String: " << gosMemList << endl;
+
+        //Build char pointer from gosMemList to use in ENsend
+        char *gosMsg = new char[gosMemList.size() + 1];
+        copy(gosMemList.begin(), gosMemList.end(), gosMsg);
+        gosMsg[gosMemList.size()] = '\0'; // don't forget the terminating 0
+
+        //Build msgsize
+        size_t msgsize = sizeof(gosMsg);
+
+        //Find non-failed nodes to gossip to and place node location into vector
+        vector<int> nonFail;
+        for (int i = 0; i < (int) memberNode->memberList.size(); i++) {
+            if (memberNode->memberList[i].getheartbeat() > -1) {
+                nonFail.push_back(i);
+            }
+        }
+
+        //Randomize the non-failed nodes
+        random_shuffle(nonFail.begin(), nonFail.end());
+
+        //Loop send message for selected members
+        for (int i = 0; i < 4; i++) {
+            //Build an address for each node in nonFail.
+            Address sendAddr(to_string(memberNode->memberList[i].getid()) + ":" +
+                             to_string(memberNode->memberList[i].getport()));
+
+            //Send the gossip message.
+            if (isNullAddress(&sendAddr) != 0) {
+                cout << i + 1 << "th address to be gossiped to: ";
+                printAddress(&sendAddr);
+                emulNet->ENsend(&memberNode->addr, &sendAddr, gosMsg, (int) msgsize);
+            }
+        }
+
+        // don't forget to free the string after finished using it
+        free(gosMsg);
     }
 
-    //Randomize the non-failed nodes
-    random_shuffle(nonFail.begin(), nonFail.end());
-
-    //Loop send message for selected members
-    for (int i = 0; i < 4; i++){
-        //Build an address for each node in nonFail.
-        Address sendAddr;
-        memcpy(&sendAddr.addr[0], (int*)memberNode->memberList[i].getid(), sizeof(int));
-        memcpy(&sendAddr.addr[4], (short*)memberNode->memberList[i].getport(), sizeof(short));
-        //Send the gossip message.
-        emulNet->ENsend(&memberNode->addr, &sendAddr, gosMsg, (int)msgsize);
-    }
-
-    // don't forget to free the string after finished using it
-    free(gosMsg);
+    //Increment the ping counter
+    memberNode->pingCounter = memberNode->pingCounter +1;
 
     return;
     }

@@ -370,7 +370,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         }
 
         //Now compare heartbeats of each node between memberlists, then update heartbeat and timestamp accordingly.
-        for (int i=0; i < (int)memberNode->memberList.size(); i++){
+        for (int i=0; i < (int)tempMemList.size(); i++){
             if (tempMemList[i].getheartbeat() > memberNode->memberList[i].getheartbeat()){
                 memberNode->memberList[i].setheartbeat(tempMemList[i].getheartbeat());
                 memberNode->memberList[i].settimestamp(par->globaltime);
@@ -410,23 +410,25 @@ return 0;
     }
 
     //Update own heartbeat and timestamp in membernode and in memberlist
-    memberNode->heartbeat = memberNode->heartbeat +1;
-    memberNode->memberList[myLoc].setheartbeat(memberNode->heartbeat);
+    //memberNode->heartbeat = memberNode->heartbeat +1;
+    memberNode->memberList[myLoc].setheartbeat(++memberNode->heartbeat);
     memberNode->memberList[myLoc].settimestamp(par->globaltime);
 
     //Loop through memberlist to check for timed-out members
     for(int i=0; i < (int)memberNode->memberList.size(); i++){
         if((par->globaltime - memberNode->memberList[i].gettimestamp()) > TREMOVE){
-            //Flag node as failed.
-            memberNode->memberList[i].setheartbeat(0);
-            //Build address and Log the removal of the member
-            Address remAddr(to_string(memberNode->memberList[i].getid()) + ":" +
-                             to_string(memberNode->memberList[i].getport()));
-            cout<<"Node ";
-            printAddress(&remAddr);
-            cout<<" Failed by ";
-            printAddress(&memberNode->addr);
-            log->logNodeRemove(&memberNode->addr, &remAddr);
+            if (memberNode->memberList[i].getheartbeat() != 0) {
+                //Flag node as failed.
+                memberNode->memberList[i].setheartbeat(0);
+                //Build address and Log the removal of the member
+                Address remAddr(to_string(memberNode->memberList[i].getid()) + ":" +
+                                to_string(memberNode->memberList[i].getport()));
+                cout << "Node ";
+                printAddress(&remAddr);
+                cout << " Failed by ";
+                printAddress(&memberNode->addr);
+                log->logNodeRemove(&memberNode->addr, &remAddr);
+            }
         }
     }
 

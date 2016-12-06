@@ -7,7 +7,7 @@
 
 #include "MP1Node.h"
 /*
- * Note: You can change/add any functions in MP1Node.{h,cpp}
+ * Note: Do you even C++ Bro? Cause this code is whack!
  */
 
 /**
@@ -371,7 +371,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
         //Now compare heartbeats of each node between memberlists, then update heartbeat and timestamp accordingly.
         for (int i=0; i < (int)tempMemList.size(); i++){
-            if (tempMemList[i].getheartbeat() > memberNode->memberList[i].getheartbeat()){
+            if ((tempMemList[i].getheartbeat() > memberNode->memberList[i].getheartbeat()) && memberNode->memberList[i].getheartbeat() != 0){
                 memberNode->memberList[i].setheartbeat(tempMemList[i].getheartbeat());
                 memberNode->memberList[i].settimestamp(par->globaltime);
             }
